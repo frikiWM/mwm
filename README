@@ -1,0 +1,9 @@
+= Manual Window Manager=
+ * mwm is a manual tiling window manager
+
+== History ==
+ * mwm is based on dwm
+
+== Bugs ==
+ #0: Does not work
+
