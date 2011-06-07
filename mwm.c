@@ -54,14 +54,47 @@ void init() {
 	handler[UnmapNotify] = handler_xevent; /*18*/
 }
 
+void manage(Window w, XWindowAttributes *wa) {
+	XWindowChanges wc;
+
+	wc.border_width = 1;
+	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
+	XSetWindowBorder(dpy, w, 0xFF0000);
+	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask);
+	XMoveResizeWindow(dpy, w, 0, 0, sw-wc.border_width*2, sh-wc.border_width*2);/* xywh - 'full-screen' */ 
+	XMapWindow(dpy, w);
+}
+
+void scan(void) {
+	unsigned int i, num;
+	Window d1, d2, *wins = NULL;
+	XWindowAttributes wa;
+
+	if(XQueryTree(dpy, root, &d1, &d2, &wins, &num)) {
+		for(i = 0; i < num; i++) {
+			if(!XGetWindowAttributes(dpy, wins[i], &wa)
+			|| wa.override_redirect || XGetTransientForHint(dpy, wins[i], &d1))
+				continue;
+			if(wa.map_state == IsViewable)
+				manage(wins[i], &wa);
+		}
+		for(i = 0; i < num; i++) { /* now the transients */
+			if(!XGetWindowAttributes(dpy, wins[i], &wa))
+				continue;
+			if(XGetTransientForHint(dpy, wins[i], &d1) && wa.map_state == IsViewable)
+				manage(wins[i], &wa);
+		}
+		if(wins)
+			XFree(wins);
+	}
+}
+
 void handler_configurerequest(XEvent *e) {
-	fprintf(stderr, "mwm: handler_configurerequest() %d\n", e->type);
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	XMoveResizeWindow(dpy, ev->window, 0, 0, 300, 400);
 }
 
 void handler_xevent(XEvent *e) {
-        fprintf(stderr, "mwm: handler_xevent() %d\n", e->type);
 }
 
 void die(const char *errstr, ...) {
@@ -117,16 +150,13 @@ void setup(void) {
 void run(void) {
 	XEvent ev;
 	/* main event loop */
-	XSync(dpy, False);
 	while(!XNextEvent(dpy, &ev)) {
-		XSync(dpy, False);
 		if(handler[ev.type]) {
 			fprintf(stderr, "mwm: run() [handled: %d]\n", ev.type);
 			handler[ev.type](&ev); /* call handler */
 		} else {
 			fprintf(stderr, "mwm: run() [unhandled: %d]\n", ev.type);
 		}
-		XSync(dpy, False);
 	}
 }
 
@@ -136,6 +166,7 @@ int main(int argc, char *argv[]) {
 	init();
 
 	setup();
+	scan();
 	run();
 
 	XCloseDisplay(dpy);
